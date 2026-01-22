@@ -2,6 +2,9 @@
 # AP CSP Assessment Setup Script
 # Run this once with: source setup.sh
 
+# REPLACE THIS with your actual Anthropic API key from https://console.anthropic.com
+API_KEY='YOUR_ANTHROPIC_API_KEY_HERE'
+
 echo "=========================================="
 echo "AP CSP Assessment Tool Setup"
 echo "=========================================="
@@ -12,8 +15,7 @@ echo "Installing required Python packages..."
 pip3 install anthropic
 
 # Set API key as environment variable
-# INSTRUCTOR: Replace YOUR_ANTHROPIC_API_KEY_HERE with your actual Anthropic API key from https://console.anthropic.com
-export ANTHROPIC_API_KEY='YOUR_ANTHROPIC_API_KEY_HERE'
+export ANTHROPIC_API_KEY="$API_KEY"
 
 # Add to shell profile for persistence
 SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
@@ -21,14 +23,14 @@ if [[ "$SHELL" == *"zsh"* ]]; then
     if ! grep -q "ANTHROPIC_API_KEY" ~/.zshrc 2>/dev/null; then
         echo "" >> ~/.zshrc
         echo "# AP CSP Assessment API Key" >> ~/.zshrc
-        echo "export ANTHROPIC_API_KEY='YOUR_ANTHROPIC_API_KEY_HERE'" >> ~/.zshrc
+        echo "export ANTHROPIC_API_KEY='$API_KEY'" >> ~/.zshrc
         echo "✓ Added API key to ~/.zshrc (will persist across sessions)"
     fi
 elif [[ "$SHELL" == *"bash"* ]]; then
     if ! grep -q "ANTHROPIC_API_KEY" ~/.bash_profile 2>/dev/null; then
         echo "" >> ~/.bash_profile
         echo "# AP CSP Assessment API Key" >> ~/.bash_profile
-        echo "export ANTHROPIC_API_KEY='YOUR_ANTHROPIC_API_KEY_HERE'" >> ~/.bash_profile
+        echo "export ANTHROPIC_API_KEY='$API_KEY'" >> ~/.bash_profile
         echo "✓ Added API key to ~/.bash_profile (will persist across sessions)"
     fi
 fi
