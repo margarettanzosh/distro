@@ -10,8 +10,10 @@ import json
 import datetime
 import requests
 
-# INSTRUCTOR: Update this with your server's IP address or hostname
-SERVER_URL = "http://localhost:5001"
+# INSTRUCTOR: Update this with your server's IP address BEFORE distributing to students
+# When running server.py, it will display your network IP (e.g., http://100.103.88.201:5001)
+# Replace the URL below with that address
+SERVER_URL = "http://100.103.88.201:5001"
 
 # Color codes for terminal output
 class Colors:
