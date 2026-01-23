@@ -2,7 +2,7 @@
 # AP CSP Assessment Setup Script
 # Run this once with: source setup.sh
 
-# REPLACE THIS with your actual Anthropic API key from https://console.anthropic.com
+# REPLACE THIS with your actual API key from google classroom.
 API_KEY='YOUR_API_KEY_HERE'
 
 echo "=========================================="
