@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-AP CSP Code Assessment Tool
+AP CSP Code Assessment Tool (Rich Markdown Version)
 Students run this to have an AI assess their understanding of their code.
+This version uses the Rich library for beautiful markdown rendering.
 """
 
 import os
@@ -9,8 +10,14 @@ import sys
 import json
 import datetime
 from anthropic import Anthropic
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.panel import Panel
 
-# Color codes for terminal output
+# Initialize Rich console
+console = Console()
+
+# Color codes for terminal output (for non-markdown text)
 class Colors:
     HEADER = '\033[95m'
     BLUE = '\033[94m'
@@ -22,16 +29,19 @@ class Colors:
     BOLD = '\033[1m'
 
 def print_header(text):
-    print(f"\n{Colors.BOLD}{Colors.CYAN}{text}{Colors.END}")
+    console.print(f"\n[bold cyan]{text}[/bold cyan]")
 
 def print_ai(text):
-    print(f"{Colors.BLUE}🤖 Claude: {Colors.END}{text}")
+    """Print AI's response with markdown rendering."""
+    console.print("\n[bold blue]🤖 AI:[/bold blue]")
+    md = Markdown(text)
+    console.print(md)
 
 def print_error(text):
-    print(f"{Colors.RED}Error: {Colors.END}{text}")
+    console.print(f"[bold red]Error:[/bold red] {text}")
 
 def print_success(text):
-    print(f"{Colors.GREEN}✓ {Colors.END}{text}")
+    console.print(f"[bold green]✓[/bold green] {text}")
 
 def read_code_file(filepath):
     """Read the code file and return its contents."""
@@ -50,7 +60,7 @@ def get_file_extension(filepath):
     return filepath.split('.')[-1].lower()
 
 def create_assessment_prompt(code, language):
-    """Create the initial prompt for Claude to assess the student."""
+    """Create the initial prompt for the AI to assess the student."""
     return f"""You are assessing an AP Computer Science Principles student's understanding of their code. Your goal is to ask thoughtful questions that reveal whether they truly understand:
 
 1. **How their code works** - Can they explain what specific parts do?
@@ -72,17 +82,19 @@ def create_assessment_prompt(code, language):
 - If they struggle, guide them with follow-up questions
 - Adapt based on their responses - dig deeper on interesting points
 - Focus on THEIR understanding, not testing trivia
+- Use markdown formatting for code snippets and formatting when appropriate
 
 Start by greeting the student and asking your first question about their code."""
 
 def conduct_assessment(code, language, student_name):
     """Run the interactive assessment session."""
-    # Check for API key
+    # API key from environment variable (set by setup script)
     api_key = os.environ.get("ANTHROPIC_API_KEY")
+    
     if not api_key:
-        print_error("ANTHROPIC_API_KEY environment variable not set.")
-        print("Please set it with: export ANTHROPIC_API_KEY='your-key-here'")
-        print("Get your API key at: https://console.anthropic.com/")
+        print_error("API key not configured.")
+        console.print("Please run the setup script provided by your instructor:")
+        console.print("  source setup.sh")
         return None
     
     try:
@@ -96,12 +108,12 @@ def conduct_assessment(code, language, student_name):
     system_prompt = create_assessment_prompt(code, language)
     
     print_header("🎓 AP CSP Code Assessment Started")
-    print(f"Student: {student_name}")
-    print(f"Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("\nYou'll have a conversation with Claude about your code.")
-    print("Answer thoughtfully and explain your reasoning.")
-    print("Type 'quit' or 'exit' to end early.\n")
-    print("=" * 60)
+    console.print(f"Student: {student_name}")
+    console.print(f"Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    console.print("\nYou'll have a conversation with an AI assistant about your code.")
+    console.print("Answer thoughtfully and explain your reasoning.")
+    console.print("Type 'quit' or 'exit' to end early.\n")
+    console.print("=" * 60)
     
     question_count = 0
     max_questions = 8
@@ -114,7 +126,7 @@ def conduct_assessment(code, language, student_name):
     
     while question_count < max_questions:
         try:
-            # Get Claude's response
+            # Get AI response
             response = client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=1000,
@@ -130,19 +142,18 @@ def conduct_assessment(code, language, student_name):
             
             print_ai(assistant_message)
             
-            # Check if Claude is wrapping up
+            # Check if AI is wrapping up
             if any(phrase in assistant_message.lower() for phrase in 
                    ["great job", "nice work", "well done", "that's all", "thank you for", "good understanding"]) and question_count >= 5:
-                print("\n" + "=" * 60)
+                console.print("\n" + "=" * 60)
                 print_success("Assessment complete!")
                 break
             
             # Get student response
-            print(f"\n{Colors.GREEN}You: {Colors.END}", end='')
-            student_response = input().strip()
+            student_response = console.input("\n[bold green]You:[/bold green] ").strip()
             
             if student_response.lower() in ['quit', 'exit']:
-                print("\nEnding assessment early...")
+                console.print("\nEnding assessment early...")
                 break
             
             if not student_response:
@@ -156,7 +167,7 @@ def conduct_assessment(code, language, student_name):
             question_count += 1
             
         except KeyboardInterrupt:
-            print("\n\nAssessment interrupted by user.")
+            console.print("\n\nAssessment interrupted by user.")
             break
         except Exception as e:
             print_error(f"Error during assessment: {e}")
@@ -188,14 +199,14 @@ def save_transcript(conversation, student_name, code_file, code, language):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 assess.py <code_file.py|code_file.c> [student_name]")
-        print("\nExample:")
-        print("  python3 assess.py mario.py \"John Smith\"")
-        print("  python3 assess.py hello.c")
+        console.print("Usage: python3 assess_rich.py <code_file.py|code_file.c> [student_name]")
+        console.print("\nExample:")
+        console.print("  python3 assess_rich.py mario.py \"John Smith\"")
+        console.print("  python3 assess_rich.py hello.c")
         sys.exit(1)
     
     code_file = sys.argv[1]
-    student_name = sys.argv[2] if len(sys.argv) > 2 else input("Enter your name: ").strip()
+    student_name = sys.argv[2] if len(sys.argv) > 2 else console.input("Enter your name: ").strip()
     
     if not student_name:
         student_name = "Student"
@@ -213,7 +224,7 @@ def main():
         language = 'c'
     else:
         print_error(f"Unsupported file type: .{ext}")
-        print("Only Python (.py) and C (.c) files are supported.")
+        console.print("Only Python (.py) and C (.c) files are supported.")
         sys.exit(1)
     
     # Run the assessment
@@ -223,12 +234,12 @@ def main():
         sys.exit(1)
     
     # Save transcript
-    print("\n" + "=" * 60)
+    console.print("\n" + "=" * 60)
     transcript_file = save_transcript(conversation, student_name, code_file, code, language)
     
     if transcript_file:
         print_success(f"Transcript saved to: {transcript_file}")
-        print(f"\n📤 Submit this file to your teacher: {Colors.BOLD}{transcript_file}{Colors.END}")
+        console.print(f"\n📤 Submit this file to your teacher: [bold]{transcript_file}[/bold]")
     else:
         print_error("Failed to save transcript. Please try again.")
         sys.exit(1)
