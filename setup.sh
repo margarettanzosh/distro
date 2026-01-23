@@ -2,7 +2,7 @@
 # AP CSP Assessment Setup Script
 # Run this once with: source setup.sh
 
-# REPLACE THIS with your actual API key from https://console.anthropic.com
+# REPLACE THIS with your actual Anthropic API key from https://console.anthropic.com
 API_KEY='YOUR_API_KEY_HERE'
 
 echo "=========================================="
@@ -72,7 +72,15 @@ echo "  - Shell profile (auto-loads on terminal startup)"
 echo ""
 echo "You can now run assessments with:"
 echo "  python3 assess.py your_code.py \"Your Name\""
+echo "  python3 assess_rich.py your_code.py \"Your Name\""
 echo ""
 echo "If the API key isn't loaded, run:"
 echo "  source load_env.sh"
+echo ""
+
+# Self-destruct for security (removes this script with the API key)
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+echo "Removing setup script for security..."
+rm -f "$SCRIPT_PATH"
+echo "✓ Setup script deleted. Your API key is safely stored in .env and shell profile."
 echo ""
