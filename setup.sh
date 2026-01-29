@@ -18,15 +18,18 @@ if [ -z "$API_KEY" ]; then
 fi
 
 echo ""
+echo "✓ API key received (length: ${#API_KEY} characters)"
+echo ""
 
 # Install required packages
 echo "Installing required Python packages..."
 pip3 install anthropic rich python-dotenv
 
-# Create .env file for persistent storage
+# Create .env file for persistent storage (no quotes around the key value)
 echo "# Anthropic API Key for Assessment Tool" > .env
-echo "ANTHROPIC_API_KEY='$API_KEY'" >> .env
+echo "ANTHROPIC_API_KEY=$API_KEY" >> .env
 echo "✓ Created .env file with API key"
+echo "  (First 20 chars: ${API_KEY:0:20}...)"
 
 # Make scripts executable
 chmod +x assess 2>/dev/null
