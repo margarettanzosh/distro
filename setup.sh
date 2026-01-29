@@ -33,11 +33,18 @@ if [[ "$SHELL" == *"zsh"* ]]; then
         echo "✓ Added to PATH in ~/.zshrc"
     fi
 elif [[ "$SHELL" == *"bash"* ]]; then
-    if ! grep -q "export PATH.*aiAssessment" ~/.bash_profile 2>/dev/null; then
-        echo "" >> ~/.bash_profile
-        echo "# Add AP CSP Assessment tool to PATH" >> ~/.bash_profile
-        echo 'export PATH="'"$SCRIPT_DIR"':$PATH"' >> ~/.bash_profile
-        echo "✓ Added to PATH in ~/.bash_profile"
+    # Check for .bashrc first (used by codespaces), then .bash_profile
+    if [ -f ~/.bashrc ]; then
+        BASH_CONFIG=~/.bashrc
+    else
+        BASH_CONFIG=~/.bash_profile
+    fi
+    
+    if ! grep -q "export PATH.*aiAssessment" "$BASH_CONFIG" 2>/dev/null; then
+        echo "" >> "$BASH_CONFIG"
+        echo "# Add AP CSP Assessment tool to PATH" >> "$BASH_CONFIG"
+        echo 'export PATH="'"$SCRIPT_DIR"':$PATH"' >> "$BASH_CONFIG"
+        echo "✓ Added to PATH in $BASH_CONFIG"
     fi
 fi
 
