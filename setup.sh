@@ -8,7 +8,7 @@ echo "=========================================="
 echo ""
 
 # Prompt for API key
-echo "Please enter your Anthropic API key:"
+echo "Please enter your API key:"
 echo "(It should start with sk-ant-api03-)"
 read -r API_KEY
 
@@ -71,7 +71,7 @@ echo "=========================================="
 echo "✓ Setup Complete!"
 echo "=========================================="
 echo ""
-echo "Your API key is stored in .env and will be automatically loaded."
+# echo "Your API key is stored in .env and will be automatically loaded."
 echo ""
 echo "You can now run assessments with:"
 echo "  assess scrabble.c \"Your Name\""
