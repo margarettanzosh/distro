@@ -2,12 +2,21 @@
 # AP CSP Assessment Setup Script
 # Run this once with: source setup.sh
 
-# REPLACE THIS with your actual API key from google classroom
-API_KEY='YOUR_API_KEY_HERE'
-
 echo "=========================================="
 echo "AP CSP Assessment Tool Setup"
 echo "=========================================="
+echo ""
+
+# Prompt for API key
+echo "Please enter your Anthropic API key:"
+echo "(It should start with sk-ant-api03-)"
+read -r API_KEY
+
+if [ -z "$API_KEY" ]; then
+    echo "Error: API key cannot be empty"
+    return 1
+fi
+
 echo ""
 
 # Install required packages
@@ -66,7 +75,4 @@ echo "  assess scrabble.c \"Your Name\""
 echo "  assess mario.py"
 echo ""
 echo "(In new terminals, the PATH will be automatically set)"
-echo ""
-echo "IMPORTANT: Keep your API key secure. Do not share setup.sh after"
-echo "           adding your key, as it contains your personal API key."
 echo ""
