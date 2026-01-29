@@ -71,6 +71,14 @@ elif [[ "$SHELL" == *"bash"* ]]; then
         echo 'if [ -f ~/.bashrc ]; then source ~/.bashrc; fi' >> ~/.bash_profile
         echo "✓ Configured .bash_profile to load .bashrc"
     fi
+    
+    # Make .bashrc load .profile (for cs50.dev persistence)
+    if ! grep -q "source.*profile" ~/.bashrc 2>/dev/null && ! grep -q "\. ~/\.profile" ~/.bashrc 2>/dev/null; then
+        echo "" >> ~/.bashrc
+        echo "# Load .profile for persistent PATH" >> ~/.bashrc
+        echo 'if [ -f ~/.profile ]; then . ~/.profile; fi' >> ~/.bashrc
+        echo "✓ Configured .bashrc to load .profile"
+    fi
 fi
 
 # Export PATH for current session
