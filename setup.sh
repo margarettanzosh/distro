@@ -33,18 +33,21 @@ if [[ "$SHELL" == *"zsh"* ]]; then
         echo "✓ Added to PATH in ~/.zshrc"
     fi
 elif [[ "$SHELL" == *"bash"* ]]; then
-    # Check for .bashrc first (used by codespaces), then .bash_profile
-    if [ -f ~/.bashrc ]; then
-        BASH_CONFIG=~/.bashrc
-    else
-        BASH_CONFIG=~/.bash_profile
+    # For bash shells (including cs50.dev codespaces)
+    # Add to .bashrc
+    if ! grep -q "export PATH.*aiAssessment" ~/.bashrc 2>/dev/null; then
+        echo "" >> ~/.bashrc
+        echo "# Add AP CSP Assessment tool to PATH" >> ~/.bashrc
+        echo 'export PATH="'"$SCRIPT_DIR"':$PATH"' >> ~/.bashrc
+        echo "✓ Added to PATH in ~/.bashrc"
     fi
     
-    if ! grep -q "export PATH.*aiAssessment" "$BASH_CONFIG" 2>/dev/null; then
-        echo "" >> "$BASH_CONFIG"
-        echo "# Add AP CSP Assessment tool to PATH" >> "$BASH_CONFIG"
-        echo 'export PATH="'"$SCRIPT_DIR"':$PATH"' >> "$BASH_CONFIG"
-        echo "✓ Added to PATH in $BASH_CONFIG"
+    # Ensure .bash_profile sources .bashrc (critical for cs50.dev)
+    if [ ! -f ~/.bash_profile ] || ! grep -q "source.*bashrc" ~/.bash_profile 2>/dev/null; then
+        echo "" >> ~/.bash_profile
+        echo "# Source .bashrc for interactive shells" >> ~/.bash_profile
+        echo 'if [ -f ~/.bashrc ]; then source ~/.bashrc; fi' >> ~/.bash_profile
+        echo "✓ Configured .bash_profile to load .bashrc"
     fi
 fi
 
@@ -64,10 +67,6 @@ echo "  assess mario.py"
 echo ""
 echo "(In new terminals, the PATH will be automatically set)"
 echo ""
-
-# Self-destruct for security (removes this script with the API key)
-SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
-echo "Removing setup script for security..."
-rm -f "$SCRIPT_PATH"
-echo "✓ Setup script deleted."
+echo "IMPORTANT: Keep your API key secure. Do not share setup.sh after"
+echo "           adding your key, as it contains your personal API key."
 echo ""
