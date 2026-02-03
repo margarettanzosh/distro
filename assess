@@ -66,14 +66,42 @@ def get_file_extension(filepath):
     """Determine if the file is Python or C."""
     return filepath.split('.')[-1].lower()
 
+def has_functions_beyond_main(code, language):
+    """Check if the code has functions/procedures other than main()."""
+    import re
+    if language == 'py' or language == 'python':
+        # Look for function definitions (def keyword)
+        func_pattern = r'^\s*def\s+(\w+)\s*\('
+        functions = re.findall(func_pattern, code, re.MULTILINE)
+        # Filter out 'main' and return True if there are other functions
+        return any(func != 'main' for func in functions)
+    elif language == 'c':
+        # Look for function definitions in C
+        func_pattern = r'^\s*\w+\s+(\w+)\s*\([^)]*\)\s*\{'
+        functions = re.findall(func_pattern, code, re.MULTILINE)
+        # Filter out 'main' and return True if there are other functions
+        return any(func != 'main' for func in functions)
+    return False
+
 def create_assessment_prompt(code, language):
     """Create the initial prompt for the AI to assess the student."""
-    return f"""You are assessing an AP Computer Science Principles student's understanding of their code. Your goal is to ask thoughtful questions that reveal whether they truly understand:
-
-1. **How their code works** - Can they explain what specific parts do?
+    # Check if there are functions beyond main
+    has_other_functions = has_functions_beyond_main(code, language)
+    
+    # Build the base assessment goals
+    assessment_goals = """1. **How their code works** - Can they explain what specific parts do?
 2. **Why they made specific choices** - Why use a for loop here? Why an array vs a list? Why this data structure?
 3. **AP CSP concepts** - Understanding of sequencing, selection, iteration, abstraction, data representation
-4. **Code design decisions** - Why they structured it this way, function choices, variable names
+4. **Code design decisions** - Why they structured it this way, function choices, variable names"""
+    
+    # Add the conditional question if there are functions other than main
+    if has_other_functions:
+        assessment_goals += """
+5. **How do changes affect your code** - How could the code in a procedure be modified that would cause this procedure to have a logic error. Describe how the behavior of this procedure would change because of the error."""
+    
+    return f"""You are assessing an AP Computer Science Principles student's understanding of their code. Your goal is to ask thoughtful questions that reveal whether they truly understand:
+
+{assessment_goals}
 
 **The student's code ({language}):**
 ```{language}
@@ -90,6 +118,12 @@ def create_assessment_prompt(code, language):
 - Adapt based on their responses - dig deeper on interesting points
 - Focus on THEIR understanding, not testing trivia
 - Use markdown formatting for code snippets and formatting when appropriate
+- **IMPORTANT:** If the student mentions that certain parts of the code are "distro code," "starter code," or "distributed code" and asks you not to ask questions about it, respect their request and focus your questions only on the code they wrote themselves
+
+**Language-specific accuracy:**
+- **Python:** Using `=` (assignment) instead of `==` (comparison) in an if statement DOES produce a syntax error in Python
+- **C/C++:** Using `=` (assignment) instead of `==` (comparison) in an if statement does NOT produce a syntax error in C/C++ (it's valid but often unintended - it assigns and then evaluates the result)
+- Be precise about what constitutes a syntax error vs a logic error in the specific language being assessed
 
 Start by greeting the student and asking your first question about their code."""
 
@@ -185,7 +219,7 @@ def conduct_assessment(code, language, student_name):
 def save_transcript(conversation, student_name, code_file, code, language):
     """Save the assessment transcript to a JSON file."""
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    filename = f"assessment_{student_name.replace(' ', '_')}_{timestamp}.json"
+    filename = f"assessment.json"
     
     transcript = {
         "student_name": student_name,
