@@ -290,12 +290,6 @@ def conduct_assessment(code, language, student_name):
             }
             response_times.append(response_info)
             
-            # Warn if response took too long
-            if response_time > SLOW_RESPONSE_THRESHOLD:
-                minutes = int(response_time // 60)
-                seconds = int(response_time % 60)
-                console.print(f"[yellow]⚠ Note: This response took {minutes}m {seconds}s (flagged for review)[/yellow]")
-            
             # Truncate extremely long responses to prevent context bloat
             MAX_RESPONSE_LENGTH = 2000  # characters
             if len(student_response) > MAX_RESPONSE_LENGTH:
@@ -501,16 +495,6 @@ def main():
     
     if transcript_file:
         print_success(f"Transcript saved to: {transcript_file}")
-        
-        # Display timing summary if there were slow responses
-        slow_responses = [rt for rt in response_times if rt.get('is_slow_response', False)]
-        if slow_responses:
-            console.print(f"\n[yellow]⚠ Warning: {len(slow_responses)} response(s) took longer than 3 minutes:[/yellow]")
-            for rt in slow_responses:
-                minutes = int(rt['response_time_seconds'] // 60)
-                seconds = int(rt['response_time_seconds'] % 60)
-                console.print(f"  - Question {rt['question_number']}: {minutes}m {seconds}s")
-        
         console.print(f"\n📤 Submit this file to your teacher: [bold]{transcript_file}[/bold]")
     else:
         print_error("Failed to save transcript. Please try again.")
