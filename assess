@@ -9,11 +9,13 @@ import os
 import sys
 import json
 import datetime
+import time
 from pathlib import Path
 from anthropic import Anthropic
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
+from rich.prompt import Confirm
 from dotenv import load_dotenv
 
 # Load environment variables from .env file in the same directory as this script
@@ -83,10 +85,45 @@ def has_functions_beyond_main(code, language):
         return any(func != 'main' for func in functions)
     return False
 
+def check_code_quality(code, language):
+    """Assess if the code appears complete and functional."""
+    code = code.strip()
+    lines = [line for line in code.split('\n') if line.strip() and not line.strip().startswith('#')]
+    
+    # Check for very minimal code
+    if len(lines) < 5:
+        return "INCOMPLETE", "The code is very minimal (fewer than 5 lines of non-comment code)."
+    
+    # Check for obvious syntax issues or incomplete structures
+    issues = []
+    if language in ['py', 'python']:
+        # Look for basic structure
+        if 'def ' not in code and 'for ' not in code and 'while ' not in code and 'if ' not in code:
+            issues.append("lacks basic control structures")
+        if code.count('(') != code.count(')'):
+            issues.append("unmatched parentheses")
+        if code.count('[') != code.count(']'):
+            issues.append("unmatched brackets")
+    elif language == 'c':
+        if 'main' not in code:
+            issues.append("missing main function")
+        if code.count('{') != code.count('}'):
+            issues.append("unmatched braces")
+        if code.count('(') != code.count(')'):
+            issues.append("unmatched parentheses")
+    
+    if issues:
+        return "INCORRECT", f"The code appears to have issues: {', '.join(issues)}."
+    
+    return "OK", ""
+
 def create_assessment_prompt(code, language):
     """Create the initial prompt for the AI to assess the student."""
     # Check if there are functions beyond main
     has_other_functions = has_functions_beyond_main(code, language)
+    
+    # Check code quality
+    code_status, code_issues = check_code_quality(code, language)
     
     # Build the base assessment goals
     assessment_goals = """1. **How their code works** - Can they explain what specific parts do?
@@ -99,6 +136,13 @@ def create_assessment_prompt(code, language):
         assessment_goals += """
 5. **How do changes affect your code** - How could the code in a procedure be modified that would cause this procedure to have a logic error. Describe how the behavior of this procedure would change because of the error."""
     
+    # Add code quality notice
+    code_quality_note = ""
+    if code_status != "OK":
+        code_quality_note = f"""
+
+**CRITICAL CODE QUALITY ISSUE:** {code_issues} This should factor significantly into your assessment. A student cannot demonstrate understanding of code that is incomplete or non-functional. Be direct about this limitation."""
+    
     return f"""You are assessing an AP Computer Science Principles student's understanding of their code. Your goal is to ask thoughtful questions that reveal whether they truly understand:
 
 {assessment_goals}
@@ -106,18 +150,22 @@ def create_assessment_prompt(code, language):
 **The student's code ({language}):**
 ```{language}
 {code}
-```
+```{code_quality_note}
 
 **Your approach:**
-- Ask 6-8 questions total
-- Start with a warm, encouraging greeting
+- Ask exactly ONE question at a time - never combine multiple questions together
+- Ask 6-8 questions total (plan to ask all 8 if the student is engaged)
+- Start with a brief greeting (1 sentence) and immediately ask your first question
 - Ask about specific parts of their code (reference line numbers or code snippets)
 - Ask "why" and "how" questions, not just "what"
-- Be conversational and supportive, like a helpful teacher
-- If they struggle, guide them with follow-up questions
-- Adapt based on their responses - dig deeper on interesting points
+- Be honest and direct in your feedback - if they misunderstand something, say so clearly
+- Do NOT be overly positive if they demonstrate misunderstandings - be constructive but realistic
+- Each follow-up question should explore NEW territory - avoid asking the same concept in different words
+- Keep questions focused and avoid repetition of topics already covered
 - Focus on THEIR understanding, not testing trivia
 - Use markdown formatting for code snippets and formatting when appropriate
+- **After asking your 6th, 7th, or 8th question, DO NOT include any closing remarks** - just ask the question and wait for their response
+- **After the student answers your 8th question**, provide brief feedback on their final response, thank them for their time, and say goodbye
 - **IMPORTANT:** If the student mentions that certain parts of the code are "distro code," "starter code," or "distributed code" and asks you not to ask questions about it, respect their request and focus your questions only on the code they wrote themselves
 
 **Language-specific accuracy:**
@@ -125,7 +173,13 @@ def create_assessment_prompt(code, language):
 - **C/C++:** Using `=` (assignment) instead of `==` (comparison) in an if statement does NOT produce a syntax error in C/C++ (it's valid but often unintended - it assigns and then evaluates the result)
 - Be precise about what constitutes a syntax error vs a logic error in the specific language being assessed
 
-Start by greeting the student and asking your first question about their code."""
+**Assessment honesty:**
+- Be encouraging but truthful
+- If a student has major misunderstandings, acknowledge them directly
+- Don't say "great job" or "excellent understanding" unless they truly demonstrate solid comprehension
+- Constructive feedback is more valuable than false praise
+
+Start by briefly greeting the student and asking your first question about their code."""
 
 def conduct_assessment(code, language, student_name):
     """Run the interactive assessment session."""
@@ -158,6 +212,8 @@ def conduct_assessment(code, language, student_name):
     
     question_count = 0
     max_questions = 8
+    response_times = []  # Track time taken for each response
+    SLOW_RESPONSE_THRESHOLD = 180  # 3 minutes in seconds
     
     # Initial message to start the assessment
     conversation_history.append({
@@ -183,22 +239,68 @@ def conduct_assessment(code, language, student_name):
             
             print_ai(assistant_message)
             
-            # Check if AI is wrapping up
-            if any(phrase in assistant_message.lower() for phrase in 
-                   ["great job", "nice work", "well done", "that's all", "thank you for", "good understanding"]) and question_count >= 5:
-                console.print("\n" + "=" * 60)
-                print_success("Assessment complete!")
-                break
+            # Check if AI is wrapping up (only after student has answered enough questions)
+            if question_count >= 6:
+                if any(phrase in assistant_message.lower() for phrase in 
+                       ["that concludes", "that's all", "thank you for", "we've covered", "final thoughts", "to wrap up"]):
+                    console.print("\n" + "=" * 60)
+                    print_success("Assessment complete!")
+                    break
+            
+            # Start timing the student's response
+            response_start_time = time.time()
             
             # Get student response
             student_response = console.input("\n[bold green]You:[/bold green] ").strip()
             
+            # Calculate response time
+            response_time = time.time() - response_start_time
+            
             if student_response.lower() in ['quit', 'exit']:
-                console.print("\nEnding assessment early...")
+                console.print("\n[yellow]Ending assessment early...[/yellow]")
+                console.print(f"[yellow]Completed {question_count} of 8 questions.[/yellow]")
+                # Add early finish marker to conversation
+                conversation_history.append({
+                    "role": "user",
+                    "content": "[ASSESSMENT ENDED EARLY BY STUDENT]"
+                })
                 break
             
             if not student_response:
-                continue
+                # Ask if they meant to finish or just hit enter by accident
+                should_continue = Confirm.ask("[yellow]You didn't enter a response. Do you want to continue the assessment?[/yellow]", default=True)
+                if should_continue:
+                    console.print("[cyan]Please provide your response to the question above.[/cyan]")
+                    continue
+                else:
+                    console.print("\n[yellow]Ending assessment early...[/yellow]")
+                    console.print(f"[yellow]Completed {question_count} of 8 questions.[/yellow]")
+                    conversation_history.append({
+                        "role": "user",
+                        "content": "[ASSESSMENT ENDED EARLY BY STUDENT]"
+                    })
+                    break
+            
+            # Record response time
+            response_info = {
+                "question_number": question_count + 1,
+                "response_time_seconds": round(response_time, 2),
+                "is_slow_response": response_time > SLOW_RESPONSE_THRESHOLD,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
+            response_times.append(response_info)
+            
+            # Warn if response took too long
+            if response_time > SLOW_RESPONSE_THRESHOLD:
+                minutes = int(response_time // 60)
+                seconds = int(response_time % 60)
+                console.print(f"[yellow]⚠ Note: This response took {minutes}m {seconds}s (flagged for review)[/yellow]")
+            
+            # Truncate extremely long responses to prevent context bloat
+            MAX_RESPONSE_LENGTH = 2000  # characters
+            if len(student_response) > MAX_RESPONSE_LENGTH:
+                console.print(f"[yellow]Note: Your response was very long ({len(student_response)} characters). It has been trimmed to {MAX_RESPONSE_LENGTH} characters.[/yellow]")
+                student_response = student_response[:MAX_RESPONSE_LENGTH] + "...[response truncated]"
             
             conversation_history.append({
                 "role": "user",
@@ -207,19 +309,129 @@ def conduct_assessment(code, language, student_name):
             
             question_count += 1
             
+            # If we've reached the end, enter Q&A session
+            if question_count >= max_questions:
+                # Ask if they have any questions
+                conversation_history.append({
+                    "role": "user",
+                    "content": "[SYSTEM: The assessment questions are complete. Now ask the student if they have any questions for you about the assessment, their code, or the concepts discussed. Be helpful and answer any questions they have.]"
+                })
+                
+                # Q&A Loop
+                qa_active = True
+                while qa_active:
+                    try:
+                        response = client.messages.create(
+                            model="claude-sonnet-4-20250514",
+                            max_tokens=800,
+                            system=system_prompt,
+                            messages=conversation_history
+                        )
+                        
+                        ai_message = response.content[0].text
+                        conversation_history.append({
+                            "role": "assistant",
+                            "content": ai_message
+                        })
+                        
+                        print_ai(ai_message)
+                        
+                        # Get student's question or response
+                        student_input = console.input("\n[bold green]You:[/bold green] ").strip()
+                        
+                        if not student_input:
+                            should_continue = Confirm.ask("[yellow]You didn't enter a response. Do you want to continue?[/yellow]", default=True)
+                            if not should_continue:
+                                student_input = "No, I don't have any questions."
+                            else:
+                                continue
+                        
+                        # Check if student is saying they have no questions
+                        no_questions_phrases = ["no questions", "no question", "i'm good", "im good", "i'm done", 
+                                              "im done", "that's all", "thats all", "no thanks", "no thank you",
+                                              "nope", "no", "nothing"]
+                        
+                        if any(phrase in student_input.lower() for phrase in no_questions_phrases):
+                            # Student has no more questions - say goodbye
+                            conversation_history.append({
+                                "role": "user",
+                                "content": student_input
+                            })
+                            conversation_history.append({
+                                "role": "user",
+                                "content": "[SYSTEM: The student has no more questions. Provide a brief, encouraging closing statement thanking them for their participation and wishing them well. Keep it short and genuine.]"
+                            })
+                            
+                            response = client.messages.create(
+                                model="claude-sonnet-4-20250514",
+                                max_tokens=300,
+                                system=system_prompt,
+                                messages=conversation_history
+                            )
+                            
+                            goodbye_message = response.content[0].text
+                            conversation_history.append({
+                                "role": "assistant",
+                                "content": goodbye_message
+                            })
+                            
+                            print_ai(goodbye_message)
+                            qa_active = False
+                        else:
+                            # Student has a question - answer it and ask if more questions
+                            conversation_history.append({
+                                "role": "user",
+                                "content": student_input + "\n\n[SYSTEM: After answering this question, ask if they have any other questions.]"
+                            })
+                            
+                    except Exception as e:
+                        console.print(f"\n[yellow]Error during Q&A: {e}[/yellow]")
+                        qa_active = False
+                
+                console.print("\n" + "=" * 60)
+                print_success("Assessment complete!")
+                break
+            
         except KeyboardInterrupt:
             console.print("\n\nAssessment interrupted by user.")
             break
         except Exception as e:
-            print_error(f"Error during assessment: {e}")
-            break
+            error_msg = str(e).lower()
+            # Check if it's a token limit error
+            if 'token' in error_msg or 'context' in error_msg or 'length' in error_msg:
+                print_error("The conversation has become too long for the AI to process.")
+                console.print("[yellow]This can happen with very lengthy responses. The assessment will end here.[/yellow]")
+                console.print(f"[cyan]Questions completed: {question_count}[/cyan]")
+                # Mark in conversation
+                conversation_history.append({
+                    "role": "user",
+                    "content": "[ASSESSMENT ENDED DUE TO CONTEXT LENGTH]"
+                })
+                break
+            else:
+                print_error(f"Error during assessment: {e}")
+                break
     
-    return conversation_history
+    return conversation_history, response_times
 
-def save_transcript(conversation, student_name, code_file, code, language):
+def save_transcript(conversation, student_name, code_file, code, language, response_times):
     """Save the assessment transcript to a JSON file."""
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"assessment.json"
+    
+    # Check if student finished early
+    early_finish = any("[ASSESSMENT ENDED EARLY BY STUDENT]" in msg.get("content", "") 
+                      for msg in conversation)
+    
+    # Count actual questions answered (user messages after the initial greeting)
+    questions_answered = len([msg for msg in conversation if msg["role"] == "user"]) - 1
+    
+    # Check code quality
+    code_status, code_issues = check_code_quality(code, language)
+    
+    # Calculate response time statistics
+    slow_responses = [rt for rt in response_times if rt.get('is_slow_response', False)]
+    avg_response_time = sum(rt['response_time_seconds'] for rt in response_times) / len(response_times) if response_times else 0
     
     transcript = {
         "student_name": student_name,
@@ -227,7 +439,14 @@ def save_transcript(conversation, student_name, code_file, code, language):
         "language": language,
         "timestamp": datetime.datetime.now().isoformat(),
         "code": code,
-        "conversation": conversation
+        "conversation": conversation,
+        "questions_answered": questions_answered,
+        "completed_full_assessment": questions_answered >= 6 and not early_finish,
+        "code_quality_status": code_status,
+        "code_quality_issues": code_issues if code_status != "OK" else None,
+        "response_times": response_times,
+        "slow_response_count": len(slow_responses),
+        "average_response_time_seconds": round(avg_response_time, 2)
     }
     
     try:
@@ -269,17 +488,29 @@ def main():
         sys.exit(1)
     
     # Run the assessment
-    conversation = conduct_assessment(code, language, student_name)
+    result = conduct_assessment(code, language, student_name)
     
-    if conversation is None:
+    if result is None:
         sys.exit(1)
+    
+    conversation, response_times = result
     
     # Save transcript
     console.print("\n" + "=" * 60)
-    transcript_file = save_transcript(conversation, student_name, code_file, code, language)
+    transcript_file = save_transcript(conversation, student_name, code_file, code, language, response_times)
     
     if transcript_file:
         print_success(f"Transcript saved to: {transcript_file}")
+        
+        # Display timing summary if there were slow responses
+        slow_responses = [rt for rt in response_times if rt.get('is_slow_response', False)]
+        if slow_responses:
+            console.print(f"\n[yellow]⚠ Warning: {len(slow_responses)} response(s) took longer than 3 minutes:[/yellow]")
+            for rt in slow_responses:
+                minutes = int(rt['response_time_seconds'] // 60)
+                seconds = int(rt['response_time_seconds'] % 60)
+                console.print(f"  - Question {rt['question_number']}: {minutes}m {seconds}s")
+        
         console.print(f"\n📤 Submit this file to your teacher: [bold]{transcript_file}[/bold]")
     else:
         print_error("Failed to save transcript. Please try again.")
