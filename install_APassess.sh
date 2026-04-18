@@ -40,6 +40,14 @@ install_tool() {
     local target_path="$TARGET_DIR/$file_name"
     local source_url="$RAW_BASE_URL/$file_name"
 
+    # If source and target are the same file, nothing to copy.
+    if [ -e "$source_path" ] && [ -e "$target_path" ]; then
+        if [ "$(cd "$(dirname "$source_path")" && pwd)/$(basename "$source_path")" = "$(cd "$(dirname "$target_path")" && pwd)/$(basename "$target_path")" ]; then
+            print_step "$file_name already present in install directory"
+            return 0
+        fi
+    fi
+
     if [ -f "$source_path" ]; then
         cp "$source_path" "$target_path"
         print_step "Copied $file_name from local folder"
