@@ -6,7 +6,7 @@ set -e
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TARGET_DIR="$HOME/aiAssessments"
 SKIP_KEY_SETUP=0
-RAW_BASE_URL="${APASSESS_RAW_BASE_URL:-https://raw.githubusercontent.com/margarettanzosh/distro/main}"
+RAW_BASE_URL="${APASSESS_RAW_BASE_URL:-https://raw.githubusercontent.com/margarettanzosh/code_assess/main}"
 
 if [ "$1" = "--skip-key" ]; then
     SKIP_KEY_SETUP=1
