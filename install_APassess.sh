@@ -56,7 +56,6 @@ mkdir -p "$TARGET_DIR"
 install_tool "APassess"
 install_tool "read_transcript.py"
 install_tool "view_transcript"
-install_tool "README_APassess.md"
 
 # Optional lowercase launcher for convenience
 cp "$TARGET_DIR/APassess" "$TARGET_DIR/apassess"
