@@ -1,15 +1,19 @@
 #!/bin/bash
-# Install APassess tools to ~/aiAssessments and make commands available on PATH.
+# Install APassess tools, preferring the same directory as existing assess.
 
 set -e
 
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-TARGET_DIR="$HOME/aiAssessments"
-SKIP_KEY_SETUP=0
+DEFAULT_TARGET_DIR="$HOME/aiAssessments"
+TARGET_DIR="${APASSESS_TARGET_DIR:-$DEFAULT_TARGET_DIR}"
 RAW_BASE_URL="${APASSESS_RAW_BASE_URL:-https://raw.githubusercontent.com/margarettanzosh/code_assess/main}"
 
-if [ "$1" = "--skip-key" ]; then
-    SKIP_KEY_SETUP=1
+# If assess already exists, install alongside it unless APASSESS_TARGET_DIR is set.
+if [ -z "$APASSESS_TARGET_DIR" ]; then
+    ASSESS_PATH="$(command -v assess 2>/dev/null || true)"
+    if [ -n "$ASSESS_PATH" ]; then
+        TARGET_DIR="$(cd "$(dirname "$ASSESS_PATH")" && pwd)"
+    fi
 fi
 
 print_step() {
@@ -64,67 +68,40 @@ pip3 install anthropic rich python-dotenv
 
 # API key setup
 ENV_FILE="$TARGET_DIR/.env"
-if [ "$SKIP_KEY_SETUP" -eq 0 ]; then
-    if [ ! -f "$ENV_FILE" ] || ! grep -q '^ANTHROPIC_API_KEY=' "$ENV_FILE" 2>/dev/null; then
-        if [ -n "$ANTHROPIC_API_KEY" ]; then
-            echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > "$ENV_FILE"
-            print_step "Saved existing ANTHROPIC_API_KEY from environment to $ENV_FILE"
-        else
-            echo
-            echo "Enter your Anthropic API key (starts with sk-ant-), or press Enter to skip:"
-            read -r API_KEY
-            if [ -n "$API_KEY" ]; then
-                echo "ANTHROPIC_API_KEY=$API_KEY" > "$ENV_FILE"
-                print_step "Saved API key to $ENV_FILE"
-            else
-                echo "[!] Skipped API key setup. You can set it later in $ENV_FILE"
-            fi
-        fi
-    else
-        print_step "API key already present in $ENV_FILE"
+if [ ! -f "$ENV_FILE" ] || ! grep -q '^ANTHROPIC_API_KEY=' "$ENV_FILE" 2>/dev/null; then
+    if [ -n "$ANTHROPIC_API_KEY" ]; then
+        echo "ANTHROPIC_API_KEY=$ANTHROPIC_API_KEY" > "$ENV_FILE"
+        print_step "Saved existing ANTHROPIC_API_KEY from environment to $ENV_FILE"
     fi
-else
-    print_step "Skipping API key setup (--skip-key)"
 fi
 
 add_path_line() {
     local file="$1"
+    local path_entry="$2"
     if [ ! -f "$file" ]; then
         touch "$file"
     fi
 
-    if ! grep -Fq 'export PATH="$HOME/aiAssessments:$PATH"' "$file"; then
+    if ! grep -Fq "export PATH=\"$path_entry:\$PATH\"" "$file"; then
         {
             echo
             echo '# APassess tools'
-            echo 'export PATH="$HOME/aiAssessments:$PATH"'
+            echo "export PATH=\"$path_entry:\$PATH\""
         } >> "$file"
-        print_step "Added ~/aiAssessments to PATH in $file"
+        print_step "Added $path_entry to PATH in $file"
     fi
 }
 
-add_path_line "$HOME/.zshrc"
-add_path_line "$HOME/.bashrc"
-add_path_line "$HOME/.profile"
+add_path_line "$HOME/.zshrc" "$TARGET_DIR"
+add_path_line "$HOME/.bashrc" "$TARGET_DIR"
+add_path_line "$HOME/.profile" "$TARGET_DIR"
 
 # Make available in current shell too
-export PATH="$HOME/aiAssessments:$PATH"
+export PATH="$TARGET_DIR:$PATH"
 
-echo
-print_step "Install complete"
-echo
-cat <<EOF
-Commands you can run now:
-  APassess your_program.py "Student Name"
-  apassess your_program.py "Student Name"
-  view_transcript
+echo "APassess installed."
 
-Optional installer flag:
-    bash install_APassess.sh --skip-key
-
-Optional GitHub override:
-    APASSESS_RAW_BASE_URL=https://raw.githubusercontent.com/<owner>/<repo>/<branch> bash install_APassess.sh --skip-key
-
-If a new terminal does not recognize the commands yet, run:
-  source ~/.zshrc
-EOF
+# Delete installer after successful run unless KEEP_INSTALLER=1 is set.
+if [ "${KEEP_INSTALLER:-0}" != "1" ]; then
+        rm -f "$0" 2>/dev/null || true
+fi
